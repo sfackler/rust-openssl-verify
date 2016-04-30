@@ -1,0 +1,7 @@
+[package]
+name = "openssl-verify"
+version = "0.1.0"
+authors = ["Steven Fackler <sfackler@gmail.com>"]
+
+[dependencies]
+openssl = { git = "https://github.com/sfackler/rust-openssl" }
