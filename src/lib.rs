@@ -174,10 +174,68 @@ fn matches_ip(expected: &IpAddr, actual: &[u8]) -> bool {
 
 #[cfg(test)]
 mod test {
-    use std::net::TcpStream;
     use openssl::ssl::{SslContext, SslMethod, IntoSsl, SslStream, SSL_VERIFY_PEER};
+    use std::io;
+    use std::net::TcpStream;
+    use std::process::{Command, Child, Stdio};
+    use std::sync::atomic::{AtomicUsize, ATOMIC_USIZE_INIT, Ordering};
+    use std::thread;
+    use std::time::Duration;
 
     use super::*;
+
+    static NEXT_PORT: AtomicUsize = ATOMIC_USIZE_INIT;
+
+    struct Server {
+        child: Child,
+        port: u16,
+    }
+
+    impl Drop for Server {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+        }
+    }
+
+    impl Server {
+        fn start(cert: &str, key: &str) -> Server {
+            let port = 15410 + NEXT_PORT.fetch_add(1, Ordering::SeqCst) as u16;
+
+            let child = Command::new("openssl")
+                            .arg("s_server")
+                            .arg("-accept")
+                            .arg(port.to_string())
+                            .arg("-cert")
+                            .arg(cert)
+                            .arg("-key")
+                            .arg(key)
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .stdin(Stdio::piped())
+                            .spawn()
+                            .unwrap();
+
+            Server {
+                child: child,
+                port: port,
+            }
+        }
+    }
+
+    fn connect(cert: &str, key: &str) -> (Server, TcpStream) {
+        let server = Server::start(cert, key);
+
+        for _ in 0..20 {
+            match TcpStream::connect(("localhost", server.port)) {
+                Ok(s) => return (server, s),
+                Err(ref e) if e.kind() == io::ErrorKind::ConnectionRefused => {
+                    thread::sleep(Duration::from_millis(100));
+                }
+                Err(e) => panic!("failed to connect: {}", e),
+            }
+        }
+        panic!("server never came online");
+    }
 
     #[test]
     fn google_valid() {
@@ -199,6 +257,116 @@ mod test {
         let mut ssl = ctx.into_ssl().unwrap();
 
         ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("foo.com", p, x));
+
+        SslStream::connect(ssl, stream).unwrap_err();
+    }
+
+    #[test]
+    fn valid_wildcard() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER,
+                       |p, x| verify_callback("headfootail.example.com", p, x));
+
+        SslStream::connect(ssl, stream).unwrap();
+    }
+
+    #[test]
+    fn invalid_wildcard_footer() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER,
+                       |p, x| verify_callback("headfootaill.example.com", p, x));
+
+        SslStream::connect(ssl, stream).unwrap_err();
+    }
+
+    #[test]
+    fn invalid_wildcard_header() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER,
+                       |p, x| verify_callback("bheadfootail.example.com", p, x));
+
+        SslStream::connect(ssl, stream).unwrap_err();
+    }
+
+    #[test]
+    fn valid_ipv4() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("192.168.1.1", p, x));
+
+        SslStream::connect(ssl, stream).unwrap();
+    }
+
+    #[test]
+    fn invalid_ipv4() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("192.168.1.2", p, x));
+
+        SslStream::connect(ssl, stream).unwrap_err();
+    }
+
+    #[test]
+    fn valid_ipv6() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER,
+                       |p, x| verify_callback("2001:DB8:85A3:0:0:8A2E:370:7334", p, x));
+
+        SslStream::connect(ssl, stream).unwrap();
+    }
+
+    #[test]
+    fn invalid_ipv6() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER,
+                       |p, x| verify_callback("2001:DB8:85A3:0:0:8A2E:370:7335", p, x));
 
         SslStream::connect(ssl, stream).unwrap_err();
     }
