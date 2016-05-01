@@ -1,19 +1,17 @@
-extern crate openssl;
-
-use openssl::nid::Nid;
-use openssl::x509::{X509StoreContext, X509, GeneralNames, X509Name};
-use std::net::IpAddr;
-
-/// A convenience wrapper around verify_hostname that implements the logic for
-/// OpenSSL's certificate verification callback.
-///
-/// If `preverify_ok` is false or the certificate depth is not 0, it will
-/// simply return the value of `preverify_ok`. It will otherwise validate the
-/// that the provided fully qualified domain name matches that of the leaf
-/// certificate.
-///
-/// # Example
-///
+//! Hostname verification for OpenSSL.
+//!
+//! OpenSSL up until version 1.1.0 did not verify that the certificate a server
+//! presents matches the domain a client is connecting to. This check is
+//! crucial, as an attacker otherwise needs only to obtain a legitimately
+//! signed certificate to *some* domain to execute a man-in-the-middle attack.
+//!
+//! The implementation in this crate is based off of libcurl's.
+//!
+//! # Examples
+//!
+//! In most cases, the `verify_callback` function should be used in OpenSSL's
+//! verification callback:
+//!
 /// ```
 /// extern crate openssl;
 /// extern crate openssl_verify;
@@ -35,7 +33,20 @@ use std::net::IpAddr;
 ///
 /// let ssl_stream = SslStream::connect(ssl, stream).unwrap();
 /// # }
-/// ```
+
+extern crate openssl;
+
+use openssl::nid::Nid;
+use openssl::x509::{X509StoreContext, X509, GeneralNames, X509Name};
+use std::net::IpAddr;
+
+/// A convenience wrapper around verify_hostname that implements the logic for
+/// OpenSSL's certificate verification callback.
+///
+/// If `preverify_ok` is false or the certificate depth is not 0, it will
+/// simply return the value of `preverify_ok`. It will otherwise validate the
+/// that the provided fully qualified domain name matches that of the leaf
+/// certificate.
 pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreContext) -> bool {
     if !preverify_ok || x509_ctx.error_depth() != 0 {
         return preverify_ok;
@@ -49,9 +60,6 @@ pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreCon
 
 /// Validates that the certificate matches the provided fully qualified domain
 /// name.
-///
-/// The logic is based off of libcurl's and behavior should be identical to
-/// that library.
 pub fn verify_hostname(domain: &str, cert: &X509) -> bool {
     match cert.subject_alt_names() {
         Some(names) => verify_subject_alt_names(domain, &names),
@@ -86,9 +94,12 @@ fn verify_subject_alt_names(domain: &str, names: &GeneralNames) -> bool {
 }
 
 fn verify_subject_name(domain: &str, subject_name: &X509Name) -> bool {
-    let is_ip = domain.parse::<IpAddr>().is_ok();
-
     if let Some(pattern) = subject_name.text_by_nid(Nid::CN) {
+        // Unlike with SANs, IP addresses in the subject name don't have a
+        // different encoding. We need to pass this down to matches_dns to
+        // disallow wildcard matches with bogus patterns like *.0.0.1
+        let is_ip = domain.parse::<IpAddr>().is_ok();
+
         if matches_dns(&pattern, domain, is_ip) {
             return true;
         }
@@ -97,7 +108,6 @@ fn verify_subject_name(domain: &str, subject_name: &X509Name) -> bool {
     false
 }
 
-// CF curl/lib/hostcheck.c
 fn matches_dns(mut pattern: &str, mut hostname: &str, is_ip: bool) -> bool {
     // first strip trailing . off of pattern and hostname to normalize
     if pattern.ends_with('.') {
