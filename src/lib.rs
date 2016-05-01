@@ -13,27 +13,27 @@
 //! In most cases, the `verify_callback` function should be used in OpenSSL's
 //! verification callback:
 //!
-/// ```
-/// extern crate openssl;
-/// extern crate openssl_verify;
-///
-/// use std::net::TcpStream;
-/// use openssl::ssl::{SslContext, SslMethod, SslStream, SSL_VERIFY_PEER, IntoSsl};
-/// use openssl_verify::verify_callback;
-///
-/// # fn main() {
-/// let domain = "google.com";
-/// let stream = TcpStream::connect((domain, 443)).unwrap();
-///
-/// let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-/// ctx.set_default_verify_paths().unwrap();
-///
-/// let mut ssl = ctx.into_ssl().unwrap();
-/// let domain = domain.to_owned();
-/// ssl.set_verify(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
-///
-/// let ssl_stream = SslStream::connect(ssl, stream).unwrap();
-/// # }
+//! ```
+//! extern crate openssl;
+//! extern crate openssl_verify;
+//!
+//! use std::net::TcpStream;
+//! use openssl::ssl::{SslContext, SslMethod, SslStream, SSL_VERIFY_PEER, IntoSsl};
+//! use openssl_verify::verify_callback;
+//!
+//! # fn main() {
+//! let domain = "google.com";
+//! let stream = TcpStream::connect((domain, 443)).unwrap();
+//!
+//! let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+//! ctx.set_default_verify_paths().unwrap();
+//!
+//! let mut ssl = ctx.into_ssl().unwrap();
+//! let domain = domain.to_owned();
+//! ssl.set_verify(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
+//!
+//! let ssl_stream = SslStream::connect(ssl, stream).unwrap();
+//! # }
 
 extern crate openssl;
 
