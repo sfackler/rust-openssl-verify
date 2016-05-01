@@ -276,8 +276,23 @@ mod test {
     }
 
     #[test]
-    // foobar.com is the subject CN but there are SANs
-    fn invalid_cname() {
+    fn valid_sname() {
+        negotiate("test/valid-sn.cert.pem",
+                  "test/valid-sn.key.pem",
+                  "foobar.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn invalid_sname() {
+        negotiate("test/valid-sn.cert.pem",
+                  "test/valid-sn.key.pem",
+                  "fizzbuzz.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn sans_prefered_to_cn() {
         negotiate("test/valid-san.cert.pem",
                   "test/valid-san.key.pem",
                   "foobar.com")
