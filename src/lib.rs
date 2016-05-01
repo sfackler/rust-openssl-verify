@@ -70,8 +70,7 @@ pub fn verify_hostname(domain: &str, cert: &X509) -> bool {
 fn verify_subject_alt_names(domain: &str, names: &GeneralNames) -> bool {
     let ip = domain.parse();
 
-    for i in 0..names.len() {
-        let name = names.get(i);
+    for name in names {
         match ip {
             Ok(ip) => {
                 if let Some(actual) = name.ipadd() {
