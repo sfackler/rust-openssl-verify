@@ -1,7 +1,7 @@
 extern crate openssl;
 
 use openssl::nid::Nid;
-use openssl::x509::{X509StoreContext, X509};
+use openssl::x509::{X509StoreContext, X509, GeneralNames, X509Name};
 use std::net::IpAddr;
 
 /// A convenience wrapper around verify_hostname that implements the logic for
@@ -53,36 +53,44 @@ pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreCon
 /// The logic is based off of libcurl's and behavior should be identical to
 /// that library.
 pub fn verify_hostname(domain: &str, cert: &X509) -> bool {
-    let ip = domain.parse();
     match cert.subject_alt_names() {
-        Some(names) => {
-            for i in 0..names.len() {
-                let name = names.get(i);
-                match ip {
-                    Ok(ip) => {
-                        if let Some(actual) = name.ipadd() {
-                            if matches_ip(&ip, actual) {
-                                return true;
-                            }
-                        }
+        Some(names) => verify_subject_alt_names(domain, &names),
+        None => verify_subject_name(domain, &cert.subject_name()),
+    }
+}
+
+fn verify_subject_alt_names(domain: &str, names: &GeneralNames) -> bool {
+    let ip = domain.parse();
+
+    for i in 0..names.len() {
+        let name = names.get(i);
+        match ip {
+            Ok(ip) => {
+                if let Some(actual) = name.ipadd() {
+                    if matches_ip(&ip, actual) {
+                        return true;
                     }
-                    Err(_) => {
-                        if let Some(pattern) = name.dns() {
-                            if matches_dns(pattern, domain, false) {
-                                return true;
-                            }
-                        }
+                }
+            }
+            Err(_) => {
+                if let Some(pattern) = name.dns() {
+                    if matches_dns(pattern, domain, false) {
+                        return true;
                     }
                 }
             }
         }
-        None => {
-            let subject_name = cert.subject_name();
-            if let Some(pattern) = subject_name.text_by_nid(Nid::CN) {
-                if matches_dns(&pattern, domain, ip.is_ok()) {
-                    return true;
-                }
-            }
+    }
+
+    false
+}
+
+fn verify_subject_name(domain: &str, subject_name: &X509Name) -> bool {
+    let is_ip = domain.parse::<IpAddr>().is_ok();
+
+    if let Some(pattern) = subject_name.text_by_nid(Nid::CN) {
+        if matches_dns(&pattern, domain, is_ip) {
+            return true;
         }
     }
 
