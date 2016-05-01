@@ -74,14 +74,14 @@ fn verify_subject_alt_names(domain: &str, names: &GeneralNames) -> bool {
     for name in names {
         match ip {
             Ok(ip) => {
-                if let Some(actual) = name.ipadd() {
+                if let Some(actual) = name.ipaddress() {
                     if matches_ip(&ip, actual) {
                         return true;
                     }
                 }
             }
             Err(_) => {
-                if let Some(pattern) = name.dns() {
+                if let Some(pattern) = name.dnsname() {
                     if matches_dns(pattern, domain, false) {
                         return true;
                     }
