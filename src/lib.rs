@@ -175,6 +175,7 @@ fn matches_ip(expected: &IpAddr, actual: &[u8]) -> bool {
 #[cfg(test)]
 mod test {
     use openssl::ssl::{SslContext, SslMethod, IntoSsl, SslStream, SSL_VERIFY_PEER};
+    use openssl::ssl::error::SslError;
     use std::io;
     use std::net::TcpStream;
     use std::process::{Command, Child, Stdio};
@@ -237,6 +238,19 @@ mod test {
         panic!("server never came online");
     }
 
+    fn negotiate(cert: &str, key: &str, domain: &str) -> Result<SslStream<TcpStream>, SslError> {
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        let domain = domain.to_owned();
+        ssl.set_verify(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
+
+        SslStream::connect(ssl, stream)
+    }
+
     #[test]
     fn google_valid() {
         let stream = TcpStream::connect("google.com:443").unwrap();
@@ -264,126 +278,65 @@ mod test {
     #[test]
     // foobar.com is the subject CN but there are SANs
     fn invalid_cname() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("foobar.com", p, x));
-
-        SslStream::connect(ssl, stream).unwrap_err();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "foobar.com")
+            .unwrap_err();
     }
 
     #[test]
     fn valid_wildcard() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER,
-                       |p, x| verify_callback("headfootail.example.com", p, x));
-
-        SslStream::connect(ssl, stream).unwrap();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "headfootail.example.com")
+            .unwrap();
     }
 
     #[test]
     fn invalid_wildcard_footer() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER,
-                       |p, x| verify_callback("headfootaill.example.com", p, x));
-
-        SslStream::connect(ssl, stream).unwrap_err();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "headfootaill.example.com")
+            .unwrap_err();
     }
 
     #[test]
     fn invalid_wildcard_header() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER,
-                       |p, x| verify_callback("bheadfootail.example.com", p, x));
-
-        SslStream::connect(ssl, stream).unwrap_err();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "bheadfootaill.example.com")
+            .unwrap_err();
     }
 
     #[test]
     fn valid_ipv4() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("192.168.1.1", p, x));
-
-        SslStream::connect(ssl, stream).unwrap();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "192.168.1.1")
+            .unwrap();
     }
 
     #[test]
     fn invalid_ipv4() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("192.168.1.2", p, x));
-
-        SslStream::connect(ssl, stream).unwrap_err();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "192.168.1.2")
+            .unwrap_err();
     }
 
     #[test]
     fn valid_ipv6() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER,
-                       |p, x| verify_callback("2001:DB8:85A3:0:0:8A2E:370:7334", p, x));
-
-        SslStream::connect(ssl, stream).unwrap();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "2001:DB8:85A3:0:0:8A2E:370:7334")
+            .unwrap();
     }
 
     #[test]
     fn invalid_ipv6() {
-        let cert = "test/valid-san.cert.pem";
-        let key = "test/valid-san.key.pem";
-        let (_server, stream) = connect(cert, key);
-
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-        ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
-
-        ssl.set_verify(SSL_VERIFY_PEER,
-                       |p, x| verify_callback("2001:DB8:85A3:0:0:8A2E:370:7335", p, x));
-
-        SslStream::connect(ssl, stream).unwrap_err();
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "2001:DB8:85A3:0:0:8A2E:370:7335")
+            .unwrap_err();
     }
 }
