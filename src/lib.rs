@@ -138,6 +138,14 @@ fn matches_wildcard(pattern: &str, hostname: &str, is_ip: bool) -> Option<bool> 
     };
 
     // Never match wildcards if the pattern has less than 2 '.'s (no *.com)
+    //
+    // This is a bit dubious, as it doesn't disallow other TLDs like *.co.uk.
+    // Chrome has a black- and white-list for this, but Firefox (via NSS) does
+    // the same thing we do here.
+    //
+    // The Public Suffix (https://www.publicsuffix.org/) list could
+    // potentically be used here, but it's both huge and updated frequently
+    // enough that management would be a PITA.
     if dot_idxs.next().is_none() {
         return None;
     }
@@ -152,6 +160,7 @@ fn matches_wildcard(pattern: &str, hostname: &str, is_ip: bool) -> Option<bool> 
         None => return None,
     };
 
+    // check that the non-wildcard parts are identical
     if pattern[wildcard_end..] != hostname[hostname_label_end..] {
         return Some(false);
     }
@@ -161,10 +170,12 @@ fn matches_wildcard(pattern: &str, hostname: &str, is_ip: bool) -> Option<bool> 
 
     let hostname_label = &hostname[..hostname_label_end];
 
+    // check the prefix of the first label
     if !hostname_label.starts_with(wildcard_prefix) {
         return Some(false);
     }
 
+    // and the suffix
     if !hostname_label[wildcard_prefix.len()..].ends_with(wildcard_suffix) {
         return Some(false);
     }
@@ -318,26 +329,106 @@ mod test {
     }
 
     #[test]
-    fn valid_wildcard() {
+    fn valid_double_wildcard() {
         negotiate("test/valid-san.cert.pem",
                   "test/valid-san.key.pem",
-                  "headfootail.example.com")
+                  "headfootail.doublewild.com")
             .unwrap();
     }
 
     #[test]
-    fn invalid_wildcard_footer() {
+    fn valid_double_wildcard_minimal() {
         negotiate("test/valid-san.cert.pem",
                   "test/valid-san.key.pem",
-                  "headfootaill.example.com")
+                  "headtail.doublewild.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn invalid_double_wildcard_footer() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "headfootaill.doublewild.com")
             .unwrap_err();
     }
 
     #[test]
-    fn invalid_wildcard_header() {
+    fn invalid_double_wildcard_header() {
         negotiate("test/valid-san.cert.pem",
                   "test/valid-san.key.pem",
-                  "bheadfootaill.example.com")
+                  "bheadfootaill.doublewild.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn valid_tail_wildcard() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "footail.tailwild.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn valid_tail_wildcard_minimal() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "tail.tailwild.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn invalid_tail_wildcard() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "footaill.tailwild.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn valid_head_wildcard() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "headfoo.headwild.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn valid_head_wildcard_minimal() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "head.headwild.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn invalid_head_wildcard() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "bheadfoo.headwild.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn valid_bare_wildcard() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "foo.barewild.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn invalid_wildcard_too_deep() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "bar.foo.barewild.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn invalid_wildcard_too_short() {
+        negotiate("test/valid-san.cert.pem",
+                  "test/valid-san.key.pem",
+                  "barewild.com")
             .unwrap_err();
     }
 
@@ -386,14 +477,6 @@ mod test {
         negotiate("test/invalid-san.cert.pem",
                   "test/invalid-san.key.pem",
                   "foo.com")
-            .unwrap_err();
-    }
-
-    #[test]
-    fn bogus_wildcard_ip() {
-        negotiate("test/invalid-san.cert.pem",
-                  "test/invalid-san.key.pem",
-                  "192.168.1.1")
             .unwrap_err();
     }
 }
