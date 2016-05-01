@@ -354,4 +354,28 @@ mod test {
                   "2001:DB8:85A3:0:0:8A2E:370:7335")
             .unwrap_err();
     }
+
+    #[test]
+    fn bogus_wildcard_not_last() {
+        negotiate("test/invalid-san.cert.pem",
+                  "test/invalid-san.key.pem",
+                  "server1.foo.example.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn bogus_wildcard_too_short() {
+        negotiate("test/invalid-san.cert.pem",
+                  "test/invalid-san.key.pem",
+                  "foo.com")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn bogus_wildcard_ip() {
+        negotiate("test/invalid-san.cert.pem",
+                  "test/invalid-san.key.pem",
+                  "192.168.1.1")
+            .unwrap_err();
+    }
 }

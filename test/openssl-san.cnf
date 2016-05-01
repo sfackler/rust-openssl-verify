@@ -255,10 +255,9 @@ basicConstraints = CA:true
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = server1.example.com
-DNS.2 = head*tail.example.com
-IP.3 = 192.168.1.1
-IP.4 = 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+DNS.1 = server1.*.example.com
+DNS.2 = *.com
+DNS.3 = *.168.1.1
 
 # DER hex encoding of an extension: beware experts only!
 # obj=DER:02:03
