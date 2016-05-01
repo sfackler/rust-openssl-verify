@@ -2,6 +2,11 @@
 name = "openssl-verify"
 version = "0.1.0"
 authors = ["Steven Fackler <sfackler@gmail.com>"]
+license = "MIT/Apache-2.0"
+description = "Hostname verification for OpenSSL"
+repository = "https://github.com/sfackler/rust-openssl-verify"
+documentation = "https://sfackler.github.io/rust-openssl-verify/doc/v0.1.0/openssl_verify"
+readme = "README.md"
 
 [dependencies]
 openssl = { git = "https://github.com/sfackler/rust-openssl" }
