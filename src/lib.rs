@@ -262,6 +262,22 @@ mod test {
     }
 
     #[test]
+    // foobar.com is the subject CN but there are SANs
+    fn invalid_cname() {
+        let cert = "test/valid-san.cert.pem";
+        let key = "test/valid-san.key.pem";
+        let (_server, stream) = connect(cert, key);
+
+        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        ctx.set_CA_file(cert).unwrap();
+        let mut ssl = ctx.into_ssl().unwrap();
+
+        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("foobar.com", p, x));
+
+        SslStream::connect(ssl, stream).unwrap_err();
+    }
+
+    #[test]
     fn valid_wildcard() {
         let cert = "test/valid-san.cert.pem";
         let key = "test/valid-san.key.pem";
