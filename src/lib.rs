@@ -30,7 +30,7 @@
 //!
 //! let mut ssl = ctx.into_ssl().unwrap();
 //! let domain = domain.to_owned();
-//! ssl.set_verify(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
+//! ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 //!
 //! let ssl_stream = SslStream::connect(ssl, stream).unwrap();
 //! # }
@@ -275,7 +275,7 @@ mod test {
         let mut ssl = ctx.into_ssl().unwrap();
 
         let domain = domain.to_owned();
-        ssl.set_verify(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
+        ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 
         SslStream::connect(ssl, stream)
     }
@@ -287,7 +287,7 @@ mod test {
         ctx.set_default_verify_paths().unwrap();
         let mut ssl = ctx.into_ssl().unwrap();
 
-        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("google.com", p, x));
+        ssl.set_verify_callback(SSL_VERIFY_PEER, |p, x| verify_callback("google.com", p, x));
 
         SslStream::connect(ssl, stream).unwrap();
     }
@@ -299,7 +299,7 @@ mod test {
         ctx.set_default_verify_paths().unwrap();
         let mut ssl = ctx.into_ssl().unwrap();
 
-        ssl.set_verify(SSL_VERIFY_PEER, |p, x| verify_callback("foo.com", p, x));
+        ssl.set_verify_callback(SSL_VERIFY_PEER, |p, x| verify_callback("foo.com", p, x));
 
         SslStream::connect(ssl, stream).unwrap_err();
     }
