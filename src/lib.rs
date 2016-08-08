@@ -38,7 +38,7 @@
 extern crate openssl;
 
 use openssl::nid::Nid;
-use openssl::x509::{X509StoreContext, X509, GeneralNames, X509Name};
+use openssl::x509::{X509StoreContext, X509Ref, GeneralNames, X509Name};
 use std::net::IpAddr;
 
 /// A convenience wrapper around verify_hostname that implements the logic for
@@ -53,7 +53,7 @@ pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreCon
         return preverify_ok;
     }
 
-    match x509_ctx.get_current_cert() {
+    match x509_ctx.current_cert() {
         Some(x509) => verify_hostname(domain, &x509),
         None => true,
     }
@@ -61,7 +61,7 @@ pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreCon
 
 /// Validates that the certificate matches the provided fully qualified domain
 /// name.
-pub fn verify_hostname(domain: &str, cert: &X509) -> bool {
+pub fn verify_hostname(domain: &str, cert: &X509Ref) -> bool {
     match cert.subject_alt_names() {
         Some(names) => verify_subject_alt_names(domain, &names),
         None => verify_subject_name(domain, &cert.subject_name()),
@@ -204,7 +204,8 @@ fn matches_ip(expected: &IpAddr, actual: &[u8]) -> bool {
 #[cfg(test)]
 mod test {
     use openssl::ssl::{SslContext, SslMethod, IntoSsl, SslStream, SSL_VERIFY_PEER};
-    use openssl::ssl::error::SslError;
+    use openssl::ssl::error::Error;
+    use openssl::ssl::HandshakeError;
     use std::io;
     use std::net::TcpStream;
     use std::process::{Command, Child, Stdio};
@@ -267,7 +268,7 @@ mod test {
         panic!("server never came online");
     }
 
-    fn negotiate(cert: &str, key: &str, domain: &str) -> Result<SslStream<TcpStream>, SslError> {
+    fn negotiate(cert: &str, key: &str, domain: &str) -> Result<SslStream<TcpStream>, Error> {
         let (_server, stream) = connect(cert, key);
 
         let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
@@ -277,7 +278,13 @@ mod test {
         let domain = domain.to_owned();
         ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 
-        SslStream::connect(ssl, stream)
+        match SslStream::connect(ssl, stream) {
+            Ok(s) => Ok(s),
+            Err(HandshakeError::Failure(e)) => Err(e),
+            Err(HandshakeError::Interrupted(_)) => {
+                panic!("interrupted?")
+            }
+        }
     }
 
     #[test]
