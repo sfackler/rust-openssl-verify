@@ -9,4 +9,4 @@ documentation = "https://sfackler.github.io/rust-openssl-verify/doc/v0.1.0/opens
 readme = "README.md"
 
 [dependencies]
-openssl = "0.7.11"
+openssl = { git = "https://github.com/sfackler/rust-openssl" }
