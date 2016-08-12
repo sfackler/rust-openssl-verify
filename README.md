@@ -2,6 +2,8 @@
 
 [![Build Status](https://travis-ci.org/sfackler/rust-openssl-verify.svg?branch=master)](https://travis-ci.org/sfackler/rust-openssl-verify)
 
+[Documentation](https://sfackler.github.io/rust-openssl-verify/doc/v0.2.0/openssl_verify)
+
 Hostname verification for OpenSSL.
 
 OpenSSL up until version 1.1.0 did not support verification that the certificate
