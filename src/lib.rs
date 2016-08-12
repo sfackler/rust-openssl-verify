@@ -34,6 +34,7 @@
 //!
 //! let ssl_stream = SslStream::connect(ssl, stream).unwrap();
 //! # }
+#![doc(html_root_url="https://sfackler.github.io/rust-openssl-verify/doc/v0.2.0")]
 
 extern crate openssl;
 
