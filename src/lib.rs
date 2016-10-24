@@ -18,28 +18,28 @@
 //! extern crate openssl_verify;
 //!
 //! use std::net::TcpStream;
-//! use openssl::ssl::{SslContext, SslMethod, SslStream, SSL_VERIFY_PEER, IntoSsl};
+//! use openssl::ssl::{SslContext, SslMethod, Ssl, SslStream, SSL_VERIFY_PEER};
 //! use openssl_verify::verify_callback;
 //!
 //! # fn main() {
 //! let domain = "google.com";
 //! let stream = TcpStream::connect((domain, 443)).unwrap();
 //!
-//! let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+//! let mut ctx = SslContext::new(SslMethod::tls()).unwrap();
 //! ctx.set_default_verify_paths().unwrap();
 //!
-//! let mut ssl = ctx.into_ssl().unwrap();
+//! let mut ssl = Ssl::new(&ctx).unwrap();
 //! let domain = domain.to_owned();
 //! ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 //!
-//! let ssl_stream = SslStream::connect(ssl, stream).unwrap();
+//! let ssl_stream = ssl.connect(stream).unwrap();
 //! # }
 #![doc(html_root_url="https://sfackler.github.io/rust-openssl-verify/doc/v0.2.0")]
 
 extern crate openssl;
 
-use openssl::nid::Nid;
-use openssl::x509::{X509StoreContext, X509Ref, GeneralNames, X509Name};
+use openssl::nid;
+use openssl::x509::{X509StoreContextRef, X509Ref, GeneralNames, X509NameRef};
 use std::net::IpAddr;
 
 /// A convenience wrapper around verify_hostname that implements the logic for
@@ -49,7 +49,7 @@ use std::net::IpAddr;
 /// simply return the value of `preverify_ok`. It will otherwise validate the
 /// that the provided fully qualified domain name matches that of the leaf
 /// certificate.
-pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreContext) -> bool {
+pub fn verify_callback(domain: &str, preverify_ok: bool, x509_ctx: &X509StoreContextRef) -> bool {
     if !preverify_ok || x509_ctx.error_depth() != 0 {
         return preverify_ok;
     }
@@ -94,8 +94,8 @@ fn verify_subject_alt_names(domain: &str, names: &GeneralNames) -> bool {
     false
 }
 
-fn verify_subject_name(domain: &str, subject_name: &X509Name) -> bool {
-    if let Some(pattern) = subject_name.text_by_nid(Nid::CN) {
+fn verify_subject_name(domain: &str, subject_name: &X509NameRef) -> bool {
+    if let Some(pattern) = subject_name.text_by_nid(nid::COMMONNAME) {
         // Unlike with SANs, IP addresses in the subject name don't have a
         // different encoding. We need to pass this down to matches_dns to
         // disallow wildcard matches with bogus patterns like *.0.0.1
@@ -204,7 +204,7 @@ fn matches_ip(expected: &IpAddr, actual: &[u8]) -> bool {
 
 #[cfg(test)]
 mod test {
-    use openssl::ssl::{SslContext, SslMethod, IntoSsl, SslStream, SSL_VERIFY_PEER};
+    use openssl::ssl::{SslContext, SslMethod, Ssl, SslStream, SSL_VERIFY_PEER};
     use openssl::ssl::HandshakeError;
     use std::io;
     use std::net::TcpStream;
@@ -274,38 +274,38 @@ mod test {
                  -> Result<SslStream<TcpStream>, HandshakeError<TcpStream>> {
         let (_server, stream) = connect(cert, key);
 
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        let mut ctx = SslContext::new(SslMethod::tls()).unwrap();
         ctx.set_CA_file(cert).unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
+        let mut ssl = Ssl::new(&ctx).unwrap();
 
         let domain = domain.to_owned();
         ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| verify_callback(&domain, p, x));
 
-        SslStream::connect(ssl, stream)
+        ssl.connect(stream)
     }
 
     #[test]
     fn google_valid() {
         let stream = TcpStream::connect("google.com:443").unwrap();
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        let mut ctx = SslContext::new(SslMethod::tls()).unwrap();
         ctx.set_default_verify_paths().unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
+        let mut ssl = Ssl::new(&ctx).unwrap();
 
         ssl.set_verify_callback(SSL_VERIFY_PEER, |p, x| verify_callback("google.com", p, x));
 
-        SslStream::connect(ssl, stream).unwrap();
+        ssl.connect(stream).unwrap();
     }
 
     #[test]
     fn google_bad_domain() {
         let stream = TcpStream::connect("google.com:443").unwrap();
-        let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+        let mut ctx = SslContext::new(SslMethod::tls()).unwrap();
         ctx.set_default_verify_paths().unwrap();
-        let mut ssl = ctx.into_ssl().unwrap();
+        let mut ssl = Ssl::new(&ctx).unwrap();
 
         ssl.set_verify_callback(SSL_VERIFY_PEER, |p, x| verify_callback("foo.com", p, x));
 
-        SslStream::connect(ssl, stream).unwrap_err();
+        ssl.connect(stream).unwrap_err();
     }
 
     #[test]
