@@ -9,8 +9,4 @@ documentation = "https://sfackler.github.io/rust-openssl-verify/doc/v0.2.0/opens
 readme = "README.md"
 
 [dependencies]
-openssl = "0.8"
-
-[replace]
-"openssl:0.8.3" = { git = "https://github.com/sfackler/rust-openssl" }
-"openssl-sys:0.7.14" = { git = "https://github.com/sfackler/rust-openssl" }
+openssl = "0.9"
