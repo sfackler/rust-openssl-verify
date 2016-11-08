@@ -1,14 +1,3 @@
-# rust-openssl-verify
+# Deprecated
 
-[![Build Status](https://travis-ci.org/sfackler/rust-openssl-verify.svg?branch=master)](https://travis-ci.org/sfackler/rust-openssl-verify)
-
-[Documentation](https://sfackler.github.io/rust-openssl-verify/doc/v0.2.0/openssl_verify)
-
-Hostname verification for OpenSSL.
-
-OpenSSL up until version 1.1.0 did not support verification that the certificate
-a server presents matches the domain a client is connecting to. This check is
-crucial, as an attacker otherwise needs only to obtain a legitimately signed
-certificate to *some* domain to execute a man-in-the-middle attack.
-
-The implementation in this crate is based off of libcurl's.
+rust-openssl 0.9's `SslConnector` type should be used instead of this crate, which manages hostname verification internally.
